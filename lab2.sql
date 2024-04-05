@@ -31,7 +31,7 @@ BEGIN
 END;
 /
 
-select isIntersect(sysdate, sysdate + 5, sysdate + 2, sysdate + 1)
+select isIntersect(sysdate, sysdate + 5, sysdate + 2, sysdate + 4)
 from dual;
 
 // 3.
@@ -45,11 +45,11 @@ CREATE OR REPLACE FUNCTION get_employees(dept_id NUMBER) RETURN VARCHAR2 IS
 BEGIN
     emp_names := '';
 
-    FOR emp_rec IN c_emp_names LOOP
+    FOR employee IN c_emp_names LOOP
         IF emp_names IS NOT NULL THEN
-            emp_names := emp_names || ',';
+            emp_names := emp_names || ', ';
         END IF;
-        emp_names := emp_names || emp_rec.last_name;
+        emp_names := emp_names || employee.last_name;
     END LOOP;
 
     RETURN emp_names;
@@ -57,7 +57,7 @@ END;
 /
 
 SELECT department_id,
-get_employees(department_id ) AS employees
+get_employees(department_id) AS employees
 FROM c##hr.employees
 GROUP by department_id;
 
@@ -75,7 +75,7 @@ BEGIN
     IF object_count > 20 THEN
         DBMS_OUTPUT.PUT_LINE('SOK');
     ELSE
-        DBMS_OUTPUT.PUT_LINE('KEVÉS');
+        DBMS_OUTPUT.PUT_LINE('KEVÃ‰S');
     END IF;
 END;
 /
@@ -285,7 +285,6 @@ visszateritesi ertek: -1
 visszateritesi ertek: 2
 */
 
-// 5.
 // functions:
 // 1. isIntersect
 // 2. insertKolcsonzo (returns a number)
@@ -308,8 +307,8 @@ BEGIN
     WHERE kid=pKid;
         
     IF vKID = 0 THEN
-        INSERT INTO Kolcsonzo (Nev, Cim, Telefon)
-        VALUES (pNev, pCim, pTelefon);
+        INSERT INTO Kolcsonzo (KID, Nev, Cim, Telefon)
+        VALUES (pKid, pNev, pCim, pTelefon);
         RETURN pKid;
     ELSE
         RETURN pKid;
@@ -317,11 +316,13 @@ BEGIN
 END;
 /
 
+DECLARE v_KID NUMBER;
 BEGIN
-    insertKolcsonzo(11, 'Asd', 'Asd', '123456789');
+    v_KID := insertKolcsonzo(11, 'Asd', 'Asd', '123456789');
 END;
 /
 SELECT * FROM kolcsonzo;
+
 // 3.
 CREATE OR REPLACE PROCEDURE insert_kolcsonzes (kID NUMBER, dvdID NUMBER, datumKi DATE, datumVissza DATE)
 IS
