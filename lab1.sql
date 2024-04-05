@@ -1,31 +1,31 @@
 CREATE TABLE error_log(
-error_code INTEGER,
-error_message VARCHAR2 (4000),
-backtrace CLOB,
-callstack CLOB,
-created_on DATE,
-created_by VARCHAR2 (30)
+    error_code INTEGER,
+    error_message VARCHAR2 (4000),
+    backtrace CLOB,
+    callstack CLOB,
+    created_on DATE,
+    created_by VARCHAR2 (30)
 );
 
 CREATE OR REPLACE PROCEDURE record_error
 IS
-PRAGMA AUTONOMOUS_TRANSACTION;
-l_code PLS_INTEGER := SQLCODE;
-l_mesg VARCHAR2(32767) := SQLERRM;
+    PRAGMA AUTONOMOUS_TRANSACTION;
+    l_code PLS_INTEGER := SQLCODE;
+    l_mesg VARCHAR2(32767) := SQLERRM;
 BEGIN
-INSERT INTO error_log (error_code,
-error_message,
-backtrace,
-callstack,
-created_on,
-created_by)
-VALUES (l_code,
-l_mesg,
-sys.DBMS_UTILITY.format_error_backtrace,
-sys.DBMS_UTILITY.format_call_stack,
-SYSDATE,
-USER);
-COMMIT;
+    INSERT INTO error_log (error_code,
+    error_message,
+    backtrace,
+    callstack,
+    created_on,
+    created_by)
+    VALUES (l_code,
+    l_mesg,
+    sys.DBMS_UTILITY.format_error_backtrace,
+    sys.DBMS_UTILITY.format_call_stack,
+    SYSDATE,
+    USER);
+    COMMIT;
 END;
 
 /
@@ -95,9 +95,9 @@ INSERT INTO rally VALUES ('ONeil' ,'GBR' ,'NAVIGATOR',67, '---');
 INSERT INTO rally VALUES ('Kert�sz' ,'HUN' ,'NAVIGATOR',55, '---');
 
 // 1.
-CREATE OR REPLACE PROCEDURE addContestant(v_name IN VARCHAR2,
-    v_nationality IN VARCHAR2, v_job VARCHAR2, v_qualification IN NUMBER,
-    v_partner IN VARCHAR2) IS
+CREATE OR REPLACE PROCEDURE addContestant(v_name VARCHAR2,
+    v_nationality VARCHAR2, v_job VARCHAR2, v_qualification NUMBER,
+    v_partner VARCHAR2) IS
 BEGIN
     INSERT INTO rally (nev, nemzetiseg, feladatkor, minosites, partner) VALUES (v_name, v_nationality, v_job, v_qualification, v_partner);
 EXCEPTION
@@ -114,9 +114,9 @@ END;
 select * from rally;
 
 // 2.
-CREATE OR REPLACE PROCEDURE updateContestant(v_name IN VARCHAR2,
-    v_nationality IN VARCHAR2, v_job VARCHAR2, v_qualification IN NUMBER,
-    v_partner IN VARCHAR2) IS
+CREATE OR REPLACE PROCEDURE updateContestant(v_name VARCHAR2,
+    v_nationality VARCHAR2, v_job VARCHAR2, v_qualification NUMBER,
+    v_partner VARCHAR2) IS
     
     v_count NUMBER;
 BEGIN
@@ -151,7 +151,7 @@ END;
 select * from rally;
 
 // 3.
-CREATE OR REPLACE PROCEDURE deleteContestant(v_name IN VARCHAR2) IS
+CREATE OR REPLACE PROCEDURE deleteContestant(v_name VARCHAR2) IS
     
     v_count NUMBER;
 BEGIN
@@ -184,7 +184,7 @@ call deleteContestant('nonExistingName');
 select * from rally;
 
 // 4.
-CREATE OR REPLACE PROCEDURE findContestantNationalityAndJob(v_name IN VARCHAR2) IS
+CREATE OR REPLACE PROCEDURE findContestantNationalityAndJob(v_name VARCHAR2) IS
     v_count NUMBER;
     v_nationality VARCHAR2(20);
     v_job VARCHAR2(9);
@@ -215,7 +215,7 @@ END;
 /
 
 // 5.
-CREATE OR REPLACE FUNCTION findPartner(v_name IN VARCHAR2) RETURN VARCHAR2 IS
+CREATE OR REPLACE FUNCTION findPartner(v_name VARCHAR2) RETURN VARCHAR2 IS
     v_count NUMBER;
     v_partner VARCHAR2(25);
 BEGIN
