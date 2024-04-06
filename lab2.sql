@@ -359,12 +359,12 @@ END;
 /
 
 BEGIN
-    insertKolcsonzes(7, 7, to_date( '2021-06-15','YYYY-MM-DD'), to_date( '2021-07-15','YYYY-MM-DD'));
+    insertKolcsonzes(7, 3, to_date( '2021-06-15','YYYY-MM-DD'), to_date( '2021-08-15','YYYY-MM-DD'));
 END;
 /
 
 SELECT * FROM kolcsonzesek
-WHERE dvdID = 7 AND KID = 7;
+WHERE dvdID = 3 AND KID = 7;
 
 // 4.
 CREATE OR REPLACE FUNCTION searchDVD (pFilmCim VARCHAR2, pDatum1 DATE, pDatum2 DATE)
@@ -482,8 +482,10 @@ BEGIN
 END;
 /
 
+SET SERVEROUTPUT ON
+/
 DECLARE 
-    pFCim VARCHAR2(100) := 'Transformers';
+    pFCim VARCHAR2(100) := 'White noise';
     pKolcsonzoNev VARCHAR2(100) := 'Szilagyi Jeno';
     pKCim VARCHAR2(100) := 'Kolozsvar, Scortarilor 79';
     pKTel VARCHAR2(20) := '0732067895';
@@ -495,3 +497,5 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE('Result: ' || result);
 END;
 /
+
+select * from filmek;
