@@ -293,7 +293,16 @@ visszateritesi ertek: 2
 // 5. searchSimilarGenreMovie
 // 6. main
 
--- 2.
+// 1.
+CREATE OR REPLACE FUNCTION dateIntersect(start1 DATE, end1 DATE, start2 DATE, end2 DATE) return NUMBER is
+BEGIN
+    IF (start1 <= end2) AND 
+       (start2 <= end1) THEN return 1; ELSE return 0;
+    END IF;
+END;
+/
+
+// 2.
 CREATE OR REPLACE FUNCTION insertKolcsonzo(
     pKid NUMBER,
     pNev IN VARCHAR2,
@@ -324,32 +333,41 @@ END;
 SELECT * FROM kolcsonzo;
 
 // 3.
-CREATE OR REPLACE PROCEDURE insert_kolcsonzes (kID NUMBER, dvdID NUMBER, datumKi DATE, datumVissza DATE)
+CREATE OR REPLACE PROCEDURE insertKolcsonzes (pKID NUMBER, pDvdID NUMBER, pDatumKi DATE, pDatumVissza DATE)
 IS
-    ertek NUMBER;
-    napiar NUMBER;
+    v_ertek NUMBER;
+    v_napiar NUMBER;
 BEGIN
-    
-    SELECT napiar
-    INTO napiar
-    FROM DVDk
-    WHERE DVDID=dvdID;
-    
-    ertek := (datumVissza - datumKi) *  napiar;
-    
-    INSERT INTO kolcsonzesek VALUES (kID, dvdID, datumKi, datumVissza, ertek);
+        SELECT napiar
+        INTO v_napiar
+        FROM DVDk
+        WHERE DVDID=pDvdID;
+        
+        v_ertek := (pDatumVissza - pDatumKi) *  v_napiar;
+        
+        INSERT INTO kolcsonzesek (KID, DVDID, DatumKi, DatumVissza, Ertek) VALUES (pKID, pDvdID, pDatumKi, pDatumVissza, v_ertek);
+
     EXCEPTION 
-    WHEN DUP_VAL_ON_INDEX
-    THEN DBMS_OUTPUT.PUT_LINE('Mar szerepel benne!');
-    WHEN NO_DATA_FOUND
-    THEN DBMS_OUTPUT.PUT_LINE('Nincs meg a DVD!');
-    WHEN OTHERS
-    THEN DBMS_OUTPUT.PUT_LINE('Mas hiba!');
+        WHEN DUP_VAL_ON_INDEX
+            THEN DBMS_OUTPUT.PUT_LINE('Mar szerepel benne!');
+        WHEN NO_DATA_FOUND
+            THEN DBMS_OUTPUT.PUT_LINE('Nincs meg a DVD!');
+        WHEN OTHERS
+            THEN DBMS_OUTPUT.PUT_LINE('Mas hiba!');
+            RECORD_ERROR();
 END;
 /
 
+BEGIN
+    insertKolcsonzes(7, 7, to_date( '2021-06-15','YYYY-MM-DD'), to_date( '2021-07-15','YYYY-MM-DD'));
+END;
+/
+
+SELECT * FROM kolcsonzesek
+WHERE dvdID = 7 AND KID = 7;
+
 // 4.
-CREATE OR REPLACE FUNCTION kolcsonozhetoDVD (pFilmCim VARCHAR2, pDatum1 DATE, pDatum2 DATE)
+CREATE OR REPLACE FUNCTION searchDVD (pFilmCim VARCHAR2, pDatum1 DATE, pDatum2 DATE)
 RETURN NUMBER    
 IS
     resDVD NUMBER;
@@ -365,19 +383,27 @@ BEGIN
     MINUS
     SELECT dvdid
     FROM kolcsonzesek
-    WHERE date_intersect(datumKi, datumVissza, pDatum1, pDatum2) = 1);
+    WHERE dateIntersect(datumKi, datumVissza, pDatum1, pDatum2) = 1);
     
     IF resDVD is NULL
     THEN RETURN -1;
     ELSE RETURN resDVD;
     END IF;
-END kolcsonozhetoDVD;
+END searchDVD;
 /
+
+DECLARE res_dvd NUMBER;
+BEGIN
+    res_dvd := searchDVD('Transformers', sysdate, sysdate + 10);
+    DBMS_OUTPUT.PUT_LINE('Found dvd: ' || res_dvd);
+END;
+/
+SELECT * FROM filmekdvdn;
 
 -- 5.
 CREATE TYPE StringArray IS TABLE OF VARCHAR2(30000);
-
-CREATE OR REPLACE FUNCTION hasonloMufajuFilmek (pFilmCim VARCHAR2)
+/
+CREATE OR REPLACE FUNCTION searchSimilarGenreMovie (pFilmCim VARCHAR2)
 RETURN StringArray
 IS
     cimek StringArray;
@@ -385,40 +411,65 @@ BEGIN
     SELECT fCim
     BULK COLLECT INTO cimek
     FROM filmek
-    WHERE mufajID IN (SELECT mufajID FROM filmek WHERE FCim = pFilmCim AND fCim NOT LIKE pfilmcim);
-    
-    IF cimek is NULL
-    THEN RETURN -1;
-    ELSE RETURN cimek;
+    WHERE mufajID IN (SELECT mufajID FROM filmek WHERE FCim = pFilmCim)
+    MINUS
+    SELECT fCim 
+    FROM filmek
+    where fCim = pFilmCim;
+
+    IF cimek.COUNT = 0 THEN
+        DBMS_OUTPUT.PUT_LINE('No similar movies found');
+        RETURN null;
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('Found ' || cimek.COUNT || ' similar movie(s):');
+        RETURN cimek;
     END IF;
-    
-END hasonloMufajuFilmek;
+END searchSimilarGenreMovie;
 /
 
+DECLARE similarMovies StringArray;
+BEGIN
+    similarMovies := searchSimilarGenreMovie('White noise');
+
+    IF similarMovies IS NOT NULL THEN
+        for i in 1..similarMovies.count loop
+            DBMS_OUTPUT.PUT_LINE(similarMovies(i));
+        end loop;
+    END IF;
+END;
+/
+
+SELECT * FROM filmek;
+
 -- 6
-CREATE OR REPLACE FUNCTION main (p_fCim VARCHAR2, pKolcsonzoNev VARCHAR2, pKCim VARCHAR2, pKTel VARCHAR2, pDatumKi DATE, pDatumVissza DATE)
+CREATE OR REPLACE FUNCTION main (pFCim VARCHAR2, pKolcsonzoNev VARCHAR2, pKCim VARCHAR2, pKTel VARCHAR2, pDatumKi DATE, pDatumVissza DATE)
 RETURN NUMBER
 IS
     v_DVDID NUMBER;
     k_Visszateritett NUMBER;
     m_filmek StringArray;
+    vKID NUMBER;
 BEGIN
-    v_DVDID := kolcsonozhetoDVD(p_fCim, pDatumKi, pDatumVissza);
+    v_DVDID := searchDVD(pFCim, pDatumKi, pDatumVissza);
+
+    SELECT KID INTO vKID
+    FROM kolcsonzo
+    WHERE Nev = pKolcsonzoNev;
     
     IF v_DVDID > 0
-    THEN k_Visszateritett := insert_kolcsonzo(p_KolcsonzoNev, p_KCim, p_KTel);
-    insert_kolcsonzes(k_Visszateritett, v_DVDID, pDatumKi, pDatumVissza);
+    THEN k_Visszateritett := insertKolcsonzo(vKID, pKolcsonzoNev, pKCim, pKTel);
+    insertKolcsonzes(k_Visszateritett, v_DVDID, pDatumKi, pDatumVissza);
     RETURN v_DVDID;
     ELSE
-        m_filmek := hasonloMufajuFilmek(p_fCim);
+        m_filmek := searchSimilarGenreMovie(pFCim);
         
         FOR i IN 1..m_filmek.COUNT
         LOOP
-            v_DVDID := kolcsonozhetoDVD(m_filmek(i), pDatumKi, pDatumVissza);
+            v_DVDID := searchDVD(m_filmek(i), pDatumKi, pDatumVissza);
             
             IF v_DVDID > 0
-                THEN k_Visszateritett := insert_kolcsonzo(p_KolcsonzoNev, p_KCim, p_KTel);
-                    insert_kolcsonzes(k_Visszateritett, v_DVDID, pDatumKi, pDatumVissza); 
+                THEN k_Visszateritett := insertKolcsonzo(vKID, pKolcsonzoNev, pKCim, pKTel);
+                    insertKolcsonzes(k_Visszateritett, v_DVDID, pDatumKi, pDatumVissza); 
                     RETURN v_DVDID;
                 ELSE CONTINUE;
             END IF;
@@ -431,14 +482,16 @@ BEGIN
 END;
 /
 
-/*
-FOR i IN (SELECT * FROM kolcsonzesek)
-    LOOP
-        IF date_intersect(datumKi, datumVissza, i.datumki, i.datumvissza) = 0
-        THEN
-            CONTINUE;
-        ELSE
-            DBMS_OUTPUT.PUT_LINE('Mar ki van kolcsonozve');
-        END IF;
-    END LOOP;
-*/
+DECLARE 
+    pFCim VARCHAR2(100) := 'Transformers';
+    pKolcsonzoNev VARCHAR2(100) := 'Szilagyi Jeno';
+    pKCim VARCHAR2(100) := 'Kolozsvar, Scortarilor 79';
+    pKTel VARCHAR2(20) := '0732067895';
+    pDatumKi DATE := TO_DATE('2021-07-28', 'YYYY-MM-DD');
+    pDatumVissza DATE := TO_DATE('2021-07-30', 'YYYY-MM-DD');
+    result NUMBER;
+BEGIN
+    result := main(pFCim, pKolcsonzoNev, pKCim, pKTel, pDatumKi, pDatumVissza);
+    DBMS_OUTPUT.PUT_LINE('Result: ' || result);
+END;
+/
