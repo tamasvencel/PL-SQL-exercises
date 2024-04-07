@@ -183,66 +183,9 @@ INSERT into Foglalasok VALUES (65,14, 3, 16, '2-jul-11', 5, 250);
 
 */
 
-// insertTurista, insertFoglalas, dateIntersect, keresSzoba, keresMasikHotel, main
+// dateIntersect, insertTurista, insertFoglalas, searchRoom, searchOtherHotel, main
 
-create or replace function insertTurista (
-    pNev IN VARCHAR2,
-    pTelefon IN VARCHAR2,
-    pEmail IN VARCHAR2) return number is
-begin
-    insert into Turistak (TurID, TNev, TTelefon, EMailCim)
-        select NVL(MAX(TurID), 0) + 1, pNev, pTelefon, pEmail
-        from Turistak;
-        
-    return  TurID;
-end;
-/
-
-begin
-    insertTurista('testTurista', 123456789, 'test@gmail.com');
-end;
-/
-
-select * from Turistak;
-
-// 2.
-create or replace procedure insertFoglalas(
-	pszallid    NUMBER,
-    pturid      NUMBER,
-    pszobaszam  NUMBER,
-    pkezdodatum DATE,
-    pnapokszama NUMBER) is
-    
-    v_ertek    NUMBER;
-    v_berlesid NUMBER;
-begin
-    SELECT
-        napiarszoba * pnapokszama
-    INTO v_ertek
-    FROM
-        szallodak
-    WHERE
-        szallid = pszallid;
-    
-     SELECT
-        COUNT(*) + 1
-    INTO v_berlesid
-    FROM
-        foglalasok;
-
-    INSERT INTO foglalasok VALUES (
-        v_berlesid,
-        pszallid,
-        pturid,
-        pszobaszam,
-        pkezdodatum,
-        pnapokszama,
-        v_ertek
-    );
-end;
-/
-
-// 3.
+// 1.
 CREATE OR REPLACE FUNCTION dateIntersect(start1 DATE, end1 DATE, start2 DATE, end2 DATE) return VARCHAR2 is
 BEGIN
     IF (start1 <= end2) AND 
@@ -251,85 +194,208 @@ BEGIN
 END;
 /
 
-// 4.
-create or replace function keresSzoba(p_szall_id number, p_kezdodatum date, p_vegsodatum date) return number is
-    v_szoba_id NUMBER;
+// 2.
+create or replace function insertTourist (pNev VARCHAR2, pTelefon VARCHAR2, pEmail VARCHAR2) 
+return number is
+    v_tid_count number;
+    v_tid number;
 begin
-select szobaSzam into v_szoba_id
-    from (
-        select level as szobaSzam
-        from dual
-        connect by level <= (select szobakSzama from Szallodak where szallid = p_szall_id)
-    )
-    minus
-    (
-        select szobaszam
-        from Foglalasok f
-        where f.szallid = p_szall_id
-        and dateIntersect(p_kezdodatum, p_vegsodatum, f.kezdodatum, f.kezdodatum + f.napokszama) = 1
-    )
-    fetch first row only;
-    return v_szoba_id;
+    SELECT count(*) INTO v_tid_count
+    FROM turistak
+    where TNev = pNev AND TTelefon = pTelefon AND EmailCim = pEmail;
+
+    IF v_tid_count = 0 THEN
+        SELECT NVL(MAX(TurID), 0) + 1 INTO v_tid
+        FROM turistak;
+
+        INSERT INTO Turistak (TurID, TNev, TTelefon, EMailCim)
+            VALUES (v_tid, pNev, pTelefon, pEmail);
+            
+        RETURN  v_tid;
+    ELSE 
+        SELECT TurID INTO v_tid
+        FROM turistak
+        WHERE TNev = pNev AND TTelefon = pTelefon AND EmailCim = pEmail
+        fetch first row only;
+
+        RETURN v_tid;
+    END IF;     
 end;
+/
+
+declare v_tid number;
+begin
+    v_tid := insertTourist('testTurista2', 987654321, 'test2@gmail.com');
+end;
+/
+
+select * from Turistak;
+
+// 3.
+create or replace procedure insertFoglalas(pSzallid NUMBER, pTurid NUMBER, pSzobaSzam NUMBER, pKezdoDatum DATE, pNapokSzama NUMBER) is
+    v_ertek    NUMBER;
+    v_berlesID NUMBER;
+begin
+    SELECT napiarszoba * pNapokSzama
+    INTO v_ertek
+    FROM szallodak
+    WHERE szallid = pSzallid;
+    
+    SELECT NVL(MAX(berlesID), 0) + 1
+    INTO v_berlesID
+    FROM foglalasok;
+
+    INSERT INTO foglalasok VALUES (v_berlesID, pSzallid, pTurid, pSzobaSzam, pKezdoDatum, pNapokSzama, v_ertek
+    );
+
+    EXCEPTION 
+        WHEN DUP_VAL_ON_INDEX
+            THEN DBMS_OUTPUT.PUT_LINE('Mar szerepel a foglalas');
+        WHEN NO_DATA_FOUND
+            THEN DBMS_OUTPUT.PUT_LINE('Nincs meg a szalloda!');
+        WHEN OTHERS
+            THEN DBMS_OUTPUT.PUT_LINE('Mas hiba!');
+            RECORD_ERROR();
+end;
+/
+
+BEGIN
+    insertFoglalas(5, 1, 2, sysdate, 3);
+END;
+/
+
+SELECT * FROM foglalasok;
+
+// 4.
+create or replace function searchRoom(pSzallID number, pKezdoDatum date, pVegsoDatum date) 
+return number is
+    v_szobaID NUMBER;
+begin
+    select szobaSzam into v_szobaID
+    from (
+            select level as szobaSzam
+            from dual
+            connect by level <= (select szobakSzama from Szallodak where szallid = pSzallID)
+        )
+        minus
+        (
+            select szobaszam
+            from Foglalasok
+            where szallid = pSzallID
+            and dateIntersect(pKezdoDatum, pVegsoDatum, kezdodatum, kezdodatum + napokszama) = 1
+        )
+        fetch first row only;
+    return v_szobaID;
+    
+    exception
+        when NO_DATA_FOUND then
+            v_szobaID := -1;
+            return v_szobaID;
+end;
+/
+
+DECLARE
+    v_szobaID NUMBER;
+BEGIN
+    v_szobaID := searchRoom(5, sysdate, sysdate + 5);
+    DBMS_OUTPUT.PUT_LINE(v_szobaID);
+END;
 /
 
 // 5.
-create or replace procedure keresMasikHotel(
-    p_regi_szalloda_id IN NUMBER,
-    v_udulo_hely IN NUMBER,
-    v_csillag IN NUMBER,
-    p_kezdodatum IN DATE,
-    p_vegsodatum IN DATE,
-    outSzabadSzalloda OUT NUMBER
-) is
-    v_szalloda_id Szallodak.SzallID%TYPE;
+create or replace function searchOtherHotel(p_regi_szalloda_id NUMBER, pKezdoDatum DATE, pVegsoDatum DATE) return szallodak.szallid%TYPE
+is
+    v_szallodaID Szallodak.SzallID%TYPE;
+    v_csillag szallodak.csillag%TYPE;
+    v_udulohely udulohely.udhid%TYPE;
 begin
-    select szallid into v_szalloda_id
+    select udhid, csillag into v_udulohely, v_csillag
+    from szallodak
+    where szallid = p_regi_szalloda_id
+    fetch first row only;
+
+    select szallid into v_szallodaID
     from szallodak
     where szallid != p_regi_szalloda_id
-    and udhid = v_udolo_hely and csillag <= v_csillag
-    and keres_szabad_szoba(szallid, p_kezdodatum, p_vegsodatum) >= 0
+    and udhid = v_udulohely and csillag <= v_csillag
+    and searchRoom(szallid, pKezdoDatum, pVegsoDatum) >= 0
     fetch first row only;
     
-    outSzabadSzalloda := v_szalloda_id;
+    return v_szallodaID;
+    
+    exception
+        when NO_DATA_FOUND then
+            v_szallodaID := -1;
 end;
 /
 
+DECLARE
+    v_szallodaID szallodak.szallid%TYPE;
+BEGIN
+    v_szallodaID := searchOtherHotel(5, sysdate, sysdate + 5);
+    DBMS_OUTPUT.PUT_LINE(v_szallodaID);
+END;
+/
+
+select * from szallodak;
+
 // 6.
-create or replace function main return number is
-    v_result number;
-    v_szabad_szalloda number;
+create or replace function main(pSzallodaID szallodak.szallid%TYPE, pTuristaNev turistak.tnev%TYPE, pTTel turistak.TTelefon%TYPE, pTemail turistak.EmailCim%TYPE, pDatumKezdo foglalasok.kezdodatum%TYPE, pDatumVegso foglalasok.kezdodatum%TYPE, outSzabadSzalloda OUT szallodak.szallid%TYPE) return number is
+
+    v_turistaID turistak.turid%TYPE;
+    v_szabadSzallodaID szallodak.szallid%TYPE;
+    v_szabadSzoba szallodak.szobakszama%TYPE;
+    v_returnValue NUMBER := 0;
+    v_napokSzama foglalasok.NapokSzama%TYPE;
 begin
-    -- Insert turista
-        v_result := insertTurista('TestTurista2', '123456789', 'test@gmail.com');
+    -- Insert tourist
+        v_turistaID := insertTourist(pTuristaNev, pTTel, pTemail);
+        v_szabadSzallodaID := pSzallodaID;
         
-        if v_result > 0 then
+        if v_turistaID > 0 then
             -- turista inserted successfully, proceed with booking
-            insertFoglalas(p_szall_id, p_tur_id, p_szoba_szam, p_kezdodatum, p_napokszama);
-        
+            v_szabadSzoba := searchRoom(pSzallodaID, pDatumKezdo, pDatumVegso);
+
+            if v_szabadSzoba < 0 then
+                v_szabadSzallodaID := searchOtherHotel(pSzallodaID, pDatumKezdo, pDatumVegso);
+
+                if v_szabadSzallodaID < 0 then
+                    -- there are no free hotels
+                    return -2;
+                end if;
+
+                v_szabadSzoba := searchRoom(v_szabadSzallodaID, pDatumKezdo, pDatumVegso);
+                v_returnValue := -1;
+            end if;
+
+            v_napokSzama := pDatumVegso - pDatumKezdo;
+
+            insertFoglalas(v_szabadSzallodaID, v_turistaID, v_szabadSzoba, pDatumKezdo, v_napokSzama);
+
         -- check if the booking was successful
-            if v_result = 0 then
+            if v_returnValue = 0 then
                 -- booking successful
-                DBMS_OUTPUT.PUT_LINE('Booking successful!');
-            else
-                -- booking failed
-                DBMS_OUTPUT.PUT_LINE('Booking failed!');
+                DBMS_OUTPUT.PUT_LINE('Booking was successful!');
+            elsif v_returnValue = -1 then
+                DBMS_OUTPUT.PUT_LINE('No free rooms in the provided hotel, but found another hotel with available rooms in the same resort!');
             end if;
         else
             -- turista insertion failed
-            DBMS_OUTPUT.PUT_LINE('Failed to insert turista!');
+            DBMS_OUTPUT.PUT_LINE('Failed to insert tourist!');
+            return -2;
         end if;
         
-        -- example usage of keresMasikHotel procedure
-        keresMasikHotel(p_regi_szalloda_id, v_udulo_hely, v_csillag, p_kezdodatum, p_vegsodatum, v_szabad_szalloda);
-        
-        -- check if another hotel was found
-        if v_szabad_szalloda is not null then
-            DBMS_OUTPUT.PUT_LINE('Found another hotel with available room!');
-        ELSE
-            DBMS_OUTPUT.PUT_LINE('No other suitable hotel found!');
-        END IF;
-        
-        return 0;
+        outSzabadSzalloda := v_szabadSzallodaID;
+        return v_returnValue;
 end;
+/
+
+SET SERVEROUTPUT ON;
+
+DECLARE
+    v_outSzabadSzalloda szallodak.szallid%TYPE;
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Return ertek: ' || main(3, 'Saul Goodman', '123456789', 'asd@asd.com', DATE '2001-09-28', DATE '2001-10-21', v_outSzabadSzalloda));
+    DBMS_OUTPUT.PUT_LINE('Szalloda: ' || v_outSzabadSzalloda);
+END;
 /
